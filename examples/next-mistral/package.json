@@ -9,9 +9,9 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "ai": "2.2.30",
-    "next": "14.0.3",
-    "@mistralai/mistralai": "0.0.7",
+    "ai": "latest",
+    "next": "latest",
+    "@mistralai/mistralai": "0.1.3",
     "react": "18.2.0",
     "react-dom": "^18.2.0"
   },

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import useSWR, { KeyedMutator } from 'swr';
 import { callChatApi } from '../shared/call-chat-api';
+import { generateId as generateIdFunc } from '../shared/generate-id';
 import { processChatStream } from '../shared/process-chat-stream';
 import type {
   ChatRequest,
@@ -11,7 +12,6 @@ import type {
   Message,
   UseChatOptions,
 } from '../shared/types';
-import { nanoid } from '../shared/utils';
 import type {
   ReactResponseRow,
   experimental_StreamingReactResponse,
@@ -70,7 +70,7 @@ export type UseChatHelpers = {
   /** Whether the API request is in progress */
   isLoading: boolean;
   /** Additional data added on the server via StreamData */
-  data?: JSONValue[] | undefined;
+  data?: JSONValue[];
 };
 
 type StreamingReactResponseAction = (payload: {
@@ -88,6 +88,7 @@ const getStreamedResponse = async (
   messagesRef: React.MutableRefObject<Message[]>,
   abortControllerRef: React.MutableRefObject<AbortController | null>,
   generateId: IdGenerator,
+  streamMode?: 'stream-data' | 'text',
   onFinish?: (message: Message) => void,
   onResponse?: (response: Response) => void | Promise<void>,
   sendExtraMessageFields?: boolean,
@@ -99,14 +100,20 @@ const getStreamedResponse = async (
 
   const constructedMessagesPayload = sendExtraMessageFields
     ? chatRequest.messages
-    : chatRequest.messages.map(({ role, content, name, function_call }) => ({
-        role,
-        content,
-        ...(name !== undefined && { name }),
-        ...(function_call !== undefined && {
-          function_call: function_call,
+    : chatRequest.messages.map(
+        ({ role, content, name, function_call, tool_calls, tool_call_id }) => ({
+          role,
+          content,
+          tool_call_id,
+          ...(name !== undefined && { name }),
+          ...(function_call !== undefined && {
+            function_call: function_call,
+          }),
+          ...(tool_calls !== undefined && {
+            tool_calls: tool_calls,
+          }),
         }),
-      }));
+      );
 
   if (typeof api !== 'string') {
     // In this case, we are handling a Server Action. No complex mode handling needed.
@@ -166,16 +173,20 @@ const getStreamedResponse = async (
       ...(chatRequest.function_call !== undefined && {
         function_call: chatRequest.function_call,
       }),
+      ...(chatRequest.tools !== undefined && {
+        tools: chatRequest.tools,
+      }),
+      ...(chatRequest.tool_choice !== undefined && {
+        tool_choice: chatRequest.tool_choice,
+      }),
     },
+    streamMode,
     credentials: extraMetadataRef.current.credentials,
     headers: {
       ...extraMetadataRef.current.headers,
       ...chatRequest.options?.headers,
     },
     abortController: () => abortControllerRef.current,
-    appendMessage(message) {
-      mutate([...chatRequest.messages, message], false);
-    },
     restoreMessagesOnFailure() {
       mutate(previousMessages, false);
     },
@@ -196,13 +207,15 @@ export function useChat({
   initialInput = '',
   sendExtraMessageFields,
   experimental_onFunctionCall,
+  experimental_onToolCall,
+  streamMode,
   onResponse,
   onFinish,
   onError,
   credentials,
   headers,
   body,
-  generateId = nanoid,
+  generateId = generateIdFunc,
 }: Omit<UseChatOptions, 'api'> & {
   api?: string | StreamingReactResponseAction;
   key?: string;
@@ -282,11 +295,13 @@ export function useChat({
               messagesRef,
               abortControllerRef,
               generateId,
+              streamMode,
               onFinish,
               onResponse,
               sendExtraMessageFields,
             ),
           experimental_onFunctionCall,
+          experimental_onToolCall,
           updateChatRequest: chatRequestParam => {
             chatRequest = chatRequestParam;
           },
@@ -323,6 +338,7 @@ export function useChat({
       streamData,
       sendExtraMessageFields,
       experimental_onFunctionCall,
+      experimental_onToolCall,
       messagesRef,
       abortControllerRef,
       generateId,
@@ -332,7 +348,14 @@ export function useChat({
   const append = useCallback(
     async (
       message: Message | CreateMessage,
-      { options, functions, function_call, data }: ChatRequestOptions = {},
+      {
+        options,
+        functions,
+        function_call,
+        tools,
+        tool_choice,
+        data,
+      }: ChatRequestOptions = {},
     ) => {
       if (!message.id) {
         message.id = generateId();
@@ -344,6 +367,8 @@ export function useChat({
         data,
         ...(functions !== undefined && { functions }),
         ...(function_call !== undefined && { function_call }),
+        ...(tools !== undefined && { tools }),
+        ...(tool_choice !== undefined && { tool_choice }),
       };
 
       return triggerRequest(chatRequest);
@@ -352,7 +377,13 @@ export function useChat({
   );
 
   const reload = useCallback(
-    async ({ options, functions, function_call }: ChatRequestOptions = {}) => {
+    async ({
+      options,
+      functions,
+      function_call,
+      tools,
+      tool_choice,
+    }: ChatRequestOptions = {}) => {
       if (messagesRef.current.length === 0) return null;
 
       // Remove last assistant message and retry last user message.
@@ -363,6 +394,8 @@ export function useChat({
           options,
           ...(functions !== undefined && { functions }),
           ...(function_call !== undefined && { function_call }),
+          ...(tools !== undefined && { tools }),
+          ...(tool_choice !== undefined && { tool_choice }),
         };
 
         return triggerRequest(chatRequest);
@@ -373,6 +406,8 @@ export function useChat({
         options,
         ...(functions !== undefined && { functions }),
         ...(function_call !== undefined && { function_call }),
+        ...(tools !== undefined && { tools }),
+        ...(tool_choice !== undefined && { tool_choice }),
       };
 
       return triggerRequest(chatRequest);

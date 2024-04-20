@@ -16,6 +16,7 @@ import {
   createCallbacksTransformer,
   ToolCallPayload,
 } from './ai-stream';
+import { AzureChatCompletions } from './azure-openai-types';
 import { createStreamDataTransformer } from './stream-data';
 
 export type OpenAIStreamCallbacks = AIStreamCallbacksAndOptions & {
@@ -263,9 +264,13 @@ export interface CompletionUsage {
  * The parser extracts and trims text content from the JSON data. This parser
  * can handle data for chat or completion models.
  *
- * @return {(data: string) => string | void} A parser function that takes a JSON string as input and returns the extracted text content or nothing.
+ * @return {(data: string) => string | void| { isText: false; content: string }}
+ * A parser function that takes a JSON string as input and returns the extracted text content,
+ * a complex object with isText: false for function/tool calls, or nothing.
  */
-function parseOpenAIStream(): (data: string) => string | void {
+function parseOpenAIStream(): (
+  data: string,
+) => string | void | { isText: false; content: string } {
   const extract = chunkToText();
   return data => extract(JSON.parse(data) as OpenAIStreamReturnTypes);
 }
@@ -277,13 +282,45 @@ function parseOpenAIStream(): (data: string) => string | void {
  */
 async function* streamable(stream: AsyncIterableOpenAIStreamReturnTypes) {
   const extract = chunkToText();
-  for await (const chunk of stream) {
+
+  for await (let chunk of stream) {
+    // convert chunk if it is an Azure chat completion. Azure does not expose all
+    // properties in the interfaces, and also uses camelCase instead of snake_case
+    if ('promptFilterResults' in chunk) {
+      chunk = {
+        id: chunk.id,
+        created: chunk.created.getDate(),
+        object: (chunk as any).object, // not exposed by Azure API
+        model: (chunk as any).model, // not exposed by Azure API
+        choices: chunk.choices.map(choice => ({
+          delta: {
+            content: choice.delta?.content,
+            function_call: choice.delta?.functionCall,
+            role: choice.delta?.role as any,
+            tool_calls: choice.delta?.toolCalls?.length
+              ? choice.delta?.toolCalls?.map((toolCall, index) => ({
+                  index,
+                  id: toolCall.id,
+                  function: toolCall.function,
+                  type: toolCall.type,
+                }))
+              : undefined,
+          },
+          finish_reason: choice.finishReason as any,
+          index: choice.index,
+        })),
+      } satisfies ChatCompletionChunk;
+    }
+
     const text = extract(chunk);
+
     if (text) yield text;
   }
 }
 
-function chunkToText(): (chunk: OpenAIStreamReturnTypes) => string | void {
+function chunkToText(): (
+  chunk: OpenAIStreamReturnTypes,
+) => string | { isText: false; content: string } | void {
   const trimStartOfStream = trimStartOfStreamHelper();
   let isFunctionStreamingIn: boolean;
   return json => {
@@ -291,32 +328,53 @@ function chunkToText(): (chunk: OpenAIStreamReturnTypes) => string | void {
       const delta = json.choices[0]?.delta;
       if (delta.function_call?.name) {
         isFunctionStreamingIn = true;
-        return `{"function_call": {"name": "${delta.function_call.name}", "arguments": "`;
+        return {
+          isText: false,
+          content: `{"function_call": {"name": "${delta.function_call.name}", "arguments": "`,
+        };
       } else if (delta.tool_calls?.[0]?.function?.name) {
         isFunctionStreamingIn = true;
         const toolCall = delta.tool_calls[0];
         if (toolCall.index === 0) {
-          return `{"tool_calls":[ {"id": "${toolCall.id}", "type": "function", "function": {"name": "${toolCall.function?.name}", "arguments": "`;
+          return {
+            isText: false,
+            content: `{"tool_calls":[ {"id": "${toolCall.id}", "type": "function", "function": {"name": "${toolCall.function?.name}", "arguments": "`,
+          };
         } else {
-          return `"}}, {"id": "${toolCall.id}", "type": "function", "function": {"name": "${toolCall.function?.name}", "arguments": "`;
+          return {
+            isText: false,
+            content: `"}}, {"id": "${toolCall.id}", "type": "function", "function": {"name": "${toolCall.function?.name}", "arguments": "`,
+          };
         }
       } else if (delta.function_call?.arguments) {
-        return cleanupArguments(delta.function_call?.arguments);
-      } else if (delta.tool_calls?.[0].function?.arguments) {
-        return cleanupArguments(delta.tool_calls?.[0]?.function?.arguments);
+        return {
+          isText: false,
+          content: cleanupArguments(delta.function_call?.arguments),
+        };
+      } else if (delta.tool_calls?.[0]?.function?.arguments) {
+        return {
+          isText: false,
+          content: cleanupArguments(delta.tool_calls?.[0]?.function?.arguments),
+        };
       } else if (
         isFunctionStreamingIn &&
         (json.choices[0]?.finish_reason === 'function_call' ||
           json.choices[0]?.finish_reason === 'stop')
       ) {
         isFunctionStreamingIn = false; // Reset the flag
-        return '"}}';
+        return {
+          isText: false,
+          content: '"}}',
+        };
       } else if (
         isFunctionStreamingIn &&
         json.choices[0]?.finish_reason === 'tool_calls'
       ) {
         isFunctionStreamingIn = false; // Reset the flag
-        return '"}}]}';
+        return {
+          isText: false,
+          content: '"}}]}',
+        };
       }
     }
 
@@ -327,6 +385,7 @@ function chunkToText(): (chunk: OpenAIStreamReturnTypes) => string | void {
         ? json.choices[0].text
         : '',
     );
+
     return text;
   };
 
@@ -350,7 +409,8 @@ const __internal__OpenAIFnMessagesSymbol = Symbol(
 
 type AsyncIterableOpenAIStreamReturnTypes =
   | AsyncIterable<ChatCompletionChunk>
-  | AsyncIterable<Completion>;
+  | AsyncIterable<Completion>
+  | AsyncIterable<AzureChatCompletions>;
 
 type ExtractType<T> = T extends AsyncIterable<infer U> ? U : never;
 
@@ -421,9 +481,7 @@ export function OpenAIStream(
     const functionCallTransformer = createFunctionCallTransformer(cb);
     return stream.pipeThrough(functionCallTransformer);
   } else {
-    return stream.pipeThrough(
-      createStreamDataTransformer(cb?.experimental_streamData),
-    );
+    return stream.pipeThrough(createStreamDataTransformer());
   }
 }
 
@@ -441,7 +499,6 @@ function createFunctionCallTransformer(
   let functionCallMessages: CreateMessage[] =
     callbacks[__internal__OpenAIFnMessagesSymbol] || [];
 
-  const isComplexMode = callbacks?.experimental_streamData;
   const decode = createChunkDecoder();
 
   return new TransformStream({
@@ -464,9 +521,7 @@ function createFunctionCallTransformer(
       // Stream as normal
       if (!isFunctionStreamingIn) {
         controller.enqueue(
-          isComplexMode
-            ? textEncoder.encode(formatStreamPart('text', message))
-            : chunk,
+          textEncoder.encode(formatStreamPart('text', message)),
         );
         return;
       } else {
@@ -545,7 +600,7 @@ function createFunctionCallTransformer(
                 type: 'function',
                 func: {
                   name: tool.function.name,
-                  arguments: tool.function.arguments,
+                  arguments: JSON.parse(tool.function.arguments),
                 },
               });
             }
@@ -607,23 +662,20 @@ function createFunctionCallTransformer(
             // so we just return the function call as a message
             controller.enqueue(
               textEncoder.encode(
-                isComplexMode
-                  ? formatStreamPart(
-                      payload.function_call ? 'function_call' : 'tool_calls',
-                      // parse to prevent double-encoding:
-                      JSON.parse(aggregatedResponse),
-                    )
-                  : aggregatedResponse,
+                formatStreamPart(
+                  payload.function_call ? 'function_call' : 'tool_calls',
+                  // parse to prevent double-encoding:
+                  JSON.parse(aggregatedResponse),
+                ),
               ),
             );
             return;
           } else if (typeof functionResponse === 'string') {
             // The user returned a string, so we just return it as a message
             controller.enqueue(
-              isComplexMode
-                ? textEncoder.encode(formatStreamPart('text', functionResponse))
-                : textEncoder.encode(functionResponse),
+              textEncoder.encode(formatStreamPart('text', functionResponse)),
             );
+            aggregatedFinalCompletionResponse = functionResponse;
             return;
           }
 

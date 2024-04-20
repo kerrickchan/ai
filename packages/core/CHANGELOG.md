@@ -1,5 +1,223 @@
 # ai
 
+## 3.0.24
+
+### Patch Changes
+
+- e94fb32: feat(ai/rsc): Make `onSetAIState` and `onGetUIState` stable
+
+## 3.0.23
+
+### Patch Changes
+
+- 66b5892: Add streamMode parameter to useChat and useCompletion.
+- Updated dependencies [7b8791d]
+  - @ai-sdk/provider-utils@0.0.1
+
+## 3.0.22
+
+### Patch Changes
+
+- d544886: Breaking change: extract experimental AI core provider packages. They can now be imported with e.g. import { openai } from '@ai-sdk/openai' after adding them to a project.
+- ea6b0e1: Expose formatStreamPart, parseStreamPart, and readDataStream helpers.
+
+## 3.0.21
+
+### Patch Changes
+
+- 87d3db5: Extracted @ai-sdk/provider package
+- 8c40f8c: ai/core: Fix openai provider streamObject for gpt-4-turbo
+- 5cd29bd: ai/core: add toTextStreamResponse() method to streamText result
+
+## 3.0.20
+
+### Patch Changes
+
+- f42bbb5: Remove experimental from useAssistant and AssistantResponse.
+- 149fe26: Deprecate <Tokens/>
+- 2eb4b55: Remove experimental\_ prefix from StreamData.
+- e45fa96: Add stream support for Bedrock/Cohere.
+- a6b2500: Deprecated the `experimental_streamData: true` setting from AIStreamCallbacksAndOptions. You can delete occurrences in your code. The stream data protocol is now used by default.
+
+## 3.0.19
+
+### Patch Changes
+
+- 4f4c7f5: ai/core: Anthropic tool call support
+
+## 3.0.18
+
+### Patch Changes
+
+- 63d587e: Add Anthropic provider for ai/core functions (no tool calling).
+- 63d587e: Add automatic mime type detection for images in ai/core prompts.
+
+## 3.0.17
+
+### Patch Changes
+
+- 2b991c4: Add Google Generative AI provider for ai/core functions.
+
+## 3.0.16
+
+### Patch Changes
+
+- a54ea77: feat(ai/rsc): add `useStreamableValue`
+
+## 3.0.15
+
+### Patch Changes
+
+- 4aed2a5: Add JSDoc comments for ai/core functions.
+- cf8d12f: Export experimental language model specification under `ai/spec`.
+
+## 3.0.14
+
+### Patch Changes
+
+- 8088de8: fix(ai/rsc): improve typings for `StreamableValue`
+- 20007b9: feat(ai/rsc): support string diff and patch in streamable value
+- 6039460: Support Bedrock Anthropic Stream for Messages API.
+- e83bfe3: Added experimental ai/core functions (streamText, generateText, streamObject, generateObject). Add OpenAI and Mistral language model providers.
+
+## 3.0.13
+
+### Patch Changes
+
+- 026d061: Expose setMessages in useAssistant hook
+- 42209be: AssistantResponse: specify forwardStream return type.
+
+## 3.0.12
+
+### Patch Changes
+
+- b99b008: fix(ai/rsc): avoid appending boundary if the same reference was passed
+
+## 3.0.11
+
+### Patch Changes
+
+- ce009e2: Added OpenAI assistants streaming.
+- 3f9bf3e: Updates types to OpenAI SDK 4.29.0
+
+## 3.0.10
+
+### Patch Changes
+
+- 33d261a: fix(ai/rsc): Fix .append() behavior
+
+## 3.0.9
+
+### Patch Changes
+
+- 81ca3d6: fix(ai/rsc): improve .done() argument type
+
+## 3.0.8
+
+### Patch Changes
+
+- a94aab2: ai/rsc: optimize streamable value stream size
+
+## 3.0.7
+
+### Patch Changes
+
+- 9a9ae73: feat(ai/rsc): readStreamableValue
+
+## 3.0.6
+
+### Patch Changes
+
+- 1355ad0: Fix: experimental_onToolCall is called with parsed tool args
+- 9348f06: ai/rsc: improve dev error and warnings by trying to detect hanging streams
+- 8be9404: fix type resolution
+
+## 3.0.5
+
+### Patch Changes
+
+- a973f1e: Support Anthropic SDK v0.15.0
+- e25f3ca: type improvements
+
+## 3.0.4
+
+### Patch Changes
+
+- 7962862: fix `useActions` type inference
+- aab5324: Revert "fix(render): parse the args based on the zod schema"
+- fe55612: Bump OpenAI dependency to 4.28.4; fix type error in render
+
+## 3.0.3
+
+### Patch Changes
+
+- 4d816ca: fix(render): parse the args based on the zod schema
+- d158a47: fix potential race conditions
+
+## 3.0.2
+
+### Patch Changes
+
+- 73bd06e: fix(useActions): return typed object
+
+## 3.0.1
+
+### Patch Changes
+
+- ac20a25: ai/rsc: fix text response and async generator
+- b88778f: Added onText callback for text tokens.
+
+## 3.0.0
+
+### Major Changes
+
+- 51054a9: add ai/rsc
+
+## 2.2.37
+
+### Patch Changes
+
+- a6b5764: Add support for Mistral's JavaScript SDK
+
+## 2.2.36
+
+### Patch Changes
+
+- 141f0ce: Fix: onFinal callback is invoked with text from onToolCall when onToolCall returns string
+
+## 2.2.35
+
+### Patch Changes
+
+- b717dad: Adding Inkeep as a stream provider
+
+## 2.2.34
+
+### Patch Changes
+
+- 2c8ffdb: cohere-stream: support AsyncIterable
+- ed1e278: Message annotations handling for all Message types
+
+## 2.2.33
+
+### Patch Changes
+
+- 8542ae7: react/use-assistant: add onError handler
+- 97039ff: OpenAIStream: Add support for the Azure OpenAI client library
+
+## 2.2.32
+
+### Patch Changes
+
+- 7851fa0: StreamData: add `annotations` and `appendMessageAnnotation` support
+
+## 2.2.31
+
+### Patch Changes
+
+- 9b89c4d: react/use-assistant: Expose setInput
+- 75751c9: ai/react: Add experimental_onToolCall to useChat.
+
 ## 2.2.30
 
 ### Patch Changes

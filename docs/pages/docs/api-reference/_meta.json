@@ -1,19 +1,12 @@
 {
-  "use-assistant": "experimental_useAssistant",
+  "generative-ui": "Generative UI",
+  "providers": "Providers",
+  "use-assistant": "useAssistant",
   "use-chat": "useChat",
   "use-completion": "useCompletion",
   "ai-stream": "AIStream",
-  "anthropic-stream": "AnthropicStream",
-  "aws-bedrock-stream": "AWSBedrock*Stream",
-  "cohere-stream": "CohereStream",
-  "google-generative-ai-stream": "GoogleGenerativeAIStream",
-  "huggingface-stream": "HuggingFaceStream",
-  "langchain-stream": "LangChainStream",
-  "openai-stream": "OpenAIStream",
-  "replicate-stream": "ReplicateStream",
-  "stream-data": "experimental_StreamData",
+  "stream-data": "StreamData",
   "streaming-text-response": "StreamingTextResponse",
   "stream-to-response": "streamToResponse",
-  "assistant-response": "experimental_AssistantResponse",
   "tokens": "<Tokens />"
 }

@@ -1,8 +1,4 @@
-import {
-  OpenAIStream,
-  StreamingTextResponse,
-  experimental_StreamData,
-} from 'ai';
+import { OpenAIStream, StreamingTextResponse, StreamData } from 'ai';
 import OpenAI from 'openai';
 import type { ChatCompletionCreateParams } from 'openai/resources/chat';
 
@@ -58,7 +54,7 @@ export async function POST(req: Request) {
     functions,
   });
 
-  const data = new experimental_StreamData();
+  const data = new StreamData();
   const stream = OpenAIStream(response, {
     experimental_onFunctionCall: async (
       { name, arguments: args },
@@ -75,6 +71,8 @@ export async function POST(req: Request) {
           text: 'Some custom data',
         });
 
+        data.appendMessageAnnotation({ current_weather: weatherData });
+
         const newMessages = createFunctionCallMessages(weatherData);
         return openai.chat.completions.create({
           messages: [...messages, ...newMessages],
@@ -89,7 +87,6 @@ export async function POST(req: Request) {
     onFinal(completion) {
       data.close();
     },
-    experimental_streamData: true,
   });
 
   data.append({

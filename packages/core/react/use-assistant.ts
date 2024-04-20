@@ -1,6 +1,8 @@
 /* eslint-disable react-hooks/rules-of-hooks */
 
 import { useState } from 'react';
+
+import { generateId } from '../shared/generate-id';
 import { readDataStream } from '../shared/read-data-stream';
 import { Message } from '../shared/types';
 
@@ -13,6 +15,11 @@ export type UseAssistantHelpers = {
   messages: Message[];
 
   /**
+   * setState-powered method to update the messages array.
+   */
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+
+  /**
    * The current thread ID.
    */
   threadId: string | undefined;
@@ -21,6 +28,11 @@ export type UseAssistantHelpers = {
    * The current value of the input field.
    */
   input: string;
+
+  /**
+   * setState-powered method to update the input value.
+   */
+  setInput: React.Dispatch<React.SetStateAction<string>>;
 
   /**
    * Handler for the `onChange` event of the input field to control the input's value.
@@ -64,7 +76,7 @@ export type UseAssistantOptions = {
    * An optional string that represents the ID of an existing thread.
    * If not provided, a new thread will be created.
    */
-  threadId?: string | undefined;
+  threadId?: string;
 
   /**
    * An optional literal that sets the mode of credentials to be used on the request.
@@ -81,20 +93,26 @@ export type UseAssistantOptions = {
    * An optional, additional body object to be passed to the API endpoint.
    */
   body?: object;
+
+  /**
+   * An optional callback that will be called when the assistant encounters an error.
+   */
+  onError?: (error: Error) => void;
 };
 
-export function experimental_useAssistant({
+export function useAssistant({
   api,
   threadId: threadIdParam,
   credentials,
   headers,
   body,
+  onError,
 }: UseAssistantOptions): UseAssistantHelpers {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [threadId, setThreadId] = useState<string | undefined>(undefined);
   const [status, setStatus] = useState<AssistantStatus>('awaiting_message');
-  const [error, setError] = useState<unknown | undefined>(undefined);
+  const [error, setError] = useState<undefined | Error>(undefined);
 
   const handleInputChange = (
     event:
@@ -161,11 +179,28 @@ export function experimental_useAssistant({
             break;
           }
 
+          case 'text': {
+            // text delta - add to last message:
+            setMessages(messages => {
+              const lastMessage = messages[messages.length - 1];
+              return [
+                ...messages.slice(0, messages.length - 1),
+                {
+                  id: lastMessage.id,
+                  role: lastMessage.role,
+                  content: lastMessage.content + value,
+                },
+              ];
+            });
+
+            break;
+          }
+
           case 'data_message': {
             setMessages(messages => [
               ...messages,
               {
-                id: value.id ?? '',
+                id: value.id ?? generateId(),
                 role: 'data',
                 content: '',
                 data: value.data,
@@ -188,13 +223,18 @@ export function experimental_useAssistant({
           }
 
           case 'error': {
-            setError(value);
+            const errorObj = new Error(value);
+            setError(errorObj);
             break;
           }
         }
       }
     } catch (error) {
-      setError(error);
+      if (onError && error instanceof Error) {
+        onError(error);
+      }
+
+      setError(error as Error);
     }
 
     setStatus('awaiting_message');
@@ -202,11 +242,18 @@ export function experimental_useAssistant({
 
   return {
     messages,
+    setMessages,
     threadId,
     input,
+    setInput,
     handleInputChange,
     submitMessage,
     status,
     error,
   };
 }
+
+/**
+@deprecated Use `useAssistant` instead.
+ */
+export const experimental_useAssistant = useAssistant;
